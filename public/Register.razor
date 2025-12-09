@@ -1,0 +1,610 @@
+﻿@page "/step1"
+@rendermode InteractiveServer
+@attribute [StreamRendering]
+@using Domain.DTO
+@using System.Text.Json
+@using System.ComponentModel.DataAnnotations
+@using Domain.Entities
+@using Domain.Interfaces
+@using Microsoft.AspNetCore.Components
+@using Service
+@inject IHttpClientFactory ClientFactory
+@inject IJSRuntime jSRuntime
+@inject CookieService CookieService
+@inject UserService UserService
+@inject NavigationManager Navigation
+@inject HeardAboutService HeardAboutService
+@inject RecruitmentProgramService ProgramService
+@inject IEncryptionService EncryptionService
+@if (isLoading)
+{
+    <div class="text-center mt-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading form data...</p>
+    </div>
+}
+else if (!hasActiveProgram || hasExistingApplication)
+{
+    <div class="container mt-2">
+        <div class="row">
+            <div class="col-xl-8">
+                <div class="p-4 mb-3">
+                    <h2 class="kpmg-header kpmg-title mb-4">KPMG ONLINE APPLICATION</h2>
+
+                    <div class="">
+                        <p class="text-danger fw-bold mb-3">
+                            Sorry, there is no recruitment programmer for the time being.
+                        </p>
+                        @if (hasExistingApplication && submittedApplications.Any())
+                        {
+                            <p class="mb-2 text-danger">Please refer to the list below of your submitted applications (most recent first).</p>
+                            <ol class="mt-3">
+                                @foreach (var app in submittedApplications)
+                                {
+                                    <li class="text-danger mb-2">
+                                        <a href="/review" class="text-primary fw-bold">Preview</a>
+                                        <span> - Submitted on @app.CreatedAt.ToString("dd MMM yyyy")</span>
+                                        @if (!string.IsNullOrEmpty(app.RecruitmentProgramName))
+                                        {
+                                            <span> for @app.RecruitmentProgramName</span>
+                                        }
+                                    </li>
+                                }
+                            </ol>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <PageTitle>Create Application</PageTitle>
+    <EditForm Model="registerModel" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="container mt-1">
+            <div class="row justify-content-center">
+                <div class="col-xl-12">
+                    <div class="rounded shadow-sm pb-1 mb-3">
+                        <h5 class="fw-bold mb-3 education-section">
+                            Location & Priority
+                        </h5>
+                        <div class="row mb-3 align-items-center m-2">
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2 fw-bold">Preferable office location <span class="text-danger">*</span></label>
+                            </div>
+                            <div class="col">
+                                <InputSelect TValue="int?"
+                                             Value="registerModel.PreferableOfficeLocation"
+                                             ValueChanged="@((int? val) => registerModel.PreferableOfficeLocation = val)"
+                                             ValueExpression="@(() => registerModel.PreferableOfficeLocation)"
+                                             class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    @foreach (var office in locations)
+                                    {
+                                        <option value="@office.Id">@office.LocationName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registerModel.PreferableOfficeLocation)" />
+                            </div>
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2 fw-bold">I would like to apply for</label>
+                            </div>
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2">1st preference <span class="text-danger">*</span></label>
+                            </div>
+                            <div class="col">
+                                <InputSelect TValue="int?"
+                                             Value="registerModel.FirstPreference"
+                                             ValueChanged="@((int? val) => registerModel.FirstPreference = val)"
+                                             ValueExpression="@(() => registerModel.FirstPreference)"
+                                             class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    @foreach (var pre in preference)
+                                    {
+                                        <option value="@pre.Id">@pre.PreferenceName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registerModel.FirstPreference)" />
+                            </div>
+
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2">2nd preference</label>
+                            </div>
+                            <div class="col">
+                                <InputSelect TValue="int?"
+                                             Value="registerModel.SecondPreference"
+                                             ValueChanged="@((int? val) => registerModel.SecondPreference = val)"
+                                             ValueExpression="@(() => registerModel.SecondPreference)"
+                                             class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    @foreach (var _pre in preference)
+                                    {
+                                        <option value="@_pre.Id">@_pre.PreferenceName</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-left: 40px;">
+                    </div>
+                    <div class="rounded shadow-sm mb-3">
+                        <h5 class="mb-3 fw-bold education-section ">Personal Information</h5>
+                        <div class="row mb-1 align-items-center ">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Last name <span class="text-danger">*</span></label>
+                            <div class="col-sm-7">
+                                <InputText @bind-Value="registerModel.LastName" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.LastName)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">First name <span class="text-danger">*</span></label>
+                            <div class="col-sm-7">
+                                <InputText @bind-Value="registerModel.FirstName" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.FirstName)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Full name in Vietnamese</label>
+                            <div class="col-sm-7">
+                                <InputText @bind-Value="registerModel.VietnameseName" class="form-control form-control-sm custom-input" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Gender <span class="text-danger">*</span></label>
+                            <div class="col-sm-2">
+                                <InputSelect @bind-Value="registerModel.Gender" class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registerModel.Gender)" />
+                            </div>
+
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2 fw-bold">Nationality <span class="text-danger">*</span></label>
+                            </div>
+                            <div class="col-sm-2">
+                                <InputSelect @bind-Value="registerModel.Nationality" class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    <option value="Vietnamese">Vietnamese</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registerModel.Nationality)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Date of Birth <span class="text-danger">*</span></label>
+                            <div class="col-sm-2">
+                                <InputDate @bind-Value="registerModel.DateOfBirth" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.DateOfBirth)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Place of Birth <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputText @bind-Value="registerModel.PlaceOfBirth" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.PlaceOfBirth)" />
+                            </div>
+                        </div>
+                        <hr />
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Email Contact <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputText @bind-Value="registerModel.Email" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.Email)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">ID Card / Passport No <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputText @bind-Value="registerModel.IdCardNumber" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.IdCardNumber)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <div class="col-sm-3"></div>
+                            <div class="col-sm-7 text-primary">
+                                <label class="fst-italic col-form-label pe-2 fw-bold"><span class=" fw-bold">Email Contact & ID Card No/Passport No</span></label> used for login to your saved application
+                            </div>
+                        </div>
+                        <hr />
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Date of Issue <span class="text-danger">*</span></label>
+                            <div class="col-sm-2">
+                                <InputDate @bind-Value="registerModel.DateOfIssue" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.DateOfIssue)" />
+                            </div>
+                            <div class="col-auto">
+                                <label class="col-form-label pe-2 fw-bold">Place of Issue</label>
+                            </div>
+                            <div class="col-sm-2">
+                                <InputSelect @bind-Value="registerModel.PlaceOfIssue" class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    <option value="HCM">HCM</option>
+                                    <option value="HN">HN</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Mobile Contact <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputText @bind-Value="registerModel.Mobile" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.Mobile)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <h7 class="col-sm-3 col-form-label text-end pe-2 text-primary fw-bold">Permanent Address</h7>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Number and Street <span class="text-danger">*</span></label>
+                            <div class="col-sm-7">
+                                <InputText @bind-Value="registerModel.Street" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.Street)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Ward <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputText @bind-Value="registerModel.Ward" class="form-control form-control-sm custom-input" />
+                                <ValidationMessage For="@(() => registerModel.Ward)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">City/province <span class="text-danger">*</span></label>
+                            <div class="col-sm-4">
+                                <InputSelect TValue="int?"
+                                             Value="registerModel.City"
+                                             ValueChanged="@((int? val) => registerModel.City = val)"
+                                             ValueExpression="@(() => registerModel.City)"
+                                             class="form-select form-select-sm custom-input">
+                                    <option value="">N/A</option>
+                                    @foreach (var ct in city)
+                                    {
+                                        <option value="@ct.Id">@ct.CityName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registerModel.City)" />
+                            </div>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <h7 class="col-sm-3 col-form-label text-end pe-2 text-primary fw-bold">Current Address</h7>
+                        </div>
+                        <div class="row mb-1 align-items-center">
+                            <label class="col-sm-3 col-form-label text-end pe-2 fw-bold">Address</label>
+                            <div class="col-sm-7">
+                                <InputText @bind-Value="registerModel.CurrentAddress" class="form-control form-control-sm custom-input" />
+                            </div>
+                        </div>
+                        <div class="text-center col-sm-7 pe-4 pt-2 pb-3">
+                            <button type="submit" class="btn custom-btn1" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <span>Next</span>
+                                }
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(submitMessage))
+                        {
+                            <div class="alert @(submitMessage.Contains("thành công") ? "alert-success" : "alert-danger")">
+                                @submitMessage
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromForm]
+    private RegisterDTO registerModel { get; set; } = new RegisterDTO();
+    private User? userModel;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string errorMessage = string.Empty;
+    private bool firstRender = true;
+    private List<LocationOfficeDTO> locations = new();
+    private List<PreferenceDTO> preference = new();
+    private List<CityDTO> city = new();
+    private HttpClient Http => ClientFactory.CreateClient("LocalAPI");
+
+    private bool hasActiveProgram = false;
+    private bool hasExistingApplication = false;
+    private string activeProgramName = "";
+    private string programCheckMessage = "";
+    private List<HeardAboutDTO> submittedApplications = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var userEmail = await CookieService.GetUserEmailFromCookieAsync();
+                Console.WriteLine($"Got user email from cookie: {userEmail}");
+
+                userModel = await UserService.GetUserByEmail(userEmail);
+
+                if (userModel != null)
+                {
+                    string decryptedIDCard = GetDecryptedIDCardFromUser(userModel);
+
+                    registerModel = new RegisterDTO
+                    {
+                        ID = userModel.Id,
+                        LastName = userModel.LastName,
+                        FirstName = userModel.FirstName,
+                        VietnameseName = userModel.VietnameseName,
+                        Gender = userModel.Gender?.Trim(),
+                        Nationality = userModel.Nationality?.Trim(),
+                        DateOfBirth = userModel.DateOfBirth,
+                        PlaceOfBirth = userModel.PlaceOfBirth,
+                        Email = userModel.Email,
+                        IdCardNumber = decryptedIDCard,
+                        DateOfIssue = userModel.DateOfIssue,
+                        PlaceOfIssue = userModel.PlaceOfIssue?.Trim(),
+                        Mobile = userModel.Mobile,
+                        Street = userModel.Street,
+                        Ward = userModel.Ward,
+                        City = userModel.CityID,
+                        CurrentAddress = userModel.CurrentAddress,
+                        PreferableOfficeLocation = userModel.PreferableOfficeLocationID,
+                        FirstPreference = userModel.FirstPreferenceID,
+                        SecondPreference = userModel.SecondPreferenceID
+                    };
+
+                    await CheckProgramAndApplicationStatus(userModel.Id);
+                }
+                else
+                {
+                    Console.WriteLine("UserModel is null after getting user by email.");
+                    await CheckActiveProgramOnly();
+                }
+
+                locations = await Http.GetFromJsonAsync<List<LocationOfficeDTO>>("api/LocationOffice") ?? new();
+                preference = await Http.GetFromJsonAsync<List<PreferenceDTO>>("api/Preference") ?? new();
+                city = await Http.GetFromJsonAsync<List<CityDTO>>("api/City") ?? new();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Failed to load user/register data: {ex.Message}");
+            }
+            finally
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+    }
+    private string GetDecryptedIDCardFromUser(User user)
+    {
+        try
+        {
+            if (user == null)
+            {
+                Console.WriteLine("[GetDecryptedIDCardFromUser] User is null");
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(user.IDCardNoEncrypted))
+            {
+                var decrypted = EncryptionService.Decrypt(user.IDCardNoEncrypted);
+
+                Console.WriteLine($"[AUDIT] IDCard decrypted for User {user.Id} in Register (step1) at {DateTime.UtcNow}");
+
+                return decrypted ?? string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(user.PasswordHash) &&
+                !user.PasswordHash.StartsWith("$2"))
+            {
+                Console.WriteLine($"[FALLBACK] Using PasswordHash as plaintext IDCard for User {user.Id}");
+                Console.WriteLine($"[MIGRATION NEEDED] User {user.Id} has not been migrated yet!");
+                return user.PasswordHash;
+            }
+
+            Console.WriteLine($"[WARNING] User {user.Id} has BCrypt hash but no IDCardNoEncrypted. Cannot display IDCard.");
+            return string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Failed to decrypt IDCard for User {user?.Id}: {ex.Message}");
+            return string.Empty;
+        }
+    }
+    private async Task CheckProgramAndApplicationStatus(int userId)
+    {
+        try
+        {
+            Console.WriteLine($"=== CHECKING PROGRAM STATUS FOR USER {userId} ===");
+
+            var activeProgram = await ProgramService.GetActiveProgramAsync();
+
+            Console.WriteLine($"✅ GetActiveProgramAsync called");
+            Console.WriteLine($"Result: {(activeProgram == null ? " NULL" : $" FOUND: {activeProgram.Name}")}");
+
+            if (activeProgram != null)
+            {
+                Console.WriteLine($"   - OpenDate: {activeProgram.OpenDate:yyyy-MM-dd}");
+                Console.WriteLine($"   - CloseDate: {activeProgram.CloseDate:yyyy-MM-dd}");
+                Console.WriteLine($"   - Current: {DateTime.Now:yyyy-MM-dd}");
+            }
+
+            hasActiveProgram = activeProgram != null;
+            Console.WriteLine($"hasActiveProgram = {hasActiveProgram}");
+
+            if (hasActiveProgram)
+            {
+                activeProgramName = activeProgram.Name;
+                programCheckMessage = $"Active program: {activeProgram.Name} (Open: {activeProgram.OpenDate:dd/MM/yyyy} - Close: {activeProgram.CloseDate:dd/MM/yyyy})";
+            }
+            else
+            {
+                programCheckMessage = "No active recruitment program at this time.";
+            }
+
+            Console.WriteLine($"Checking existing applications for user {userId}");
+            var existingApp = await HeardAboutService.GetByUserIdAsync(userId);
+
+            Console.WriteLine($"Result: {(existingApp == null ? " NO APPLICATION" : $" FOUND APPLICATION ID={existingApp.Id}")}");
+
+            hasExistingApplication = existingApp != null;
+            Console.WriteLine($"hasExistingApplication = {hasExistingApplication}");
+
+            if (hasExistingApplication && existingApp != null)
+            {
+                submittedApplications.Add(existingApp);
+                Console.WriteLine($"   - Created: {existingApp.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+                Console.WriteLine($"   - Program: {existingApp.RecruitmentProgramName ?? "N/A"}");
+            }
+
+            Console.WriteLine($"FINAL DECISION");
+            Console.WriteLine($"hasActiveProgram: {hasActiveProgram}");
+            Console.WriteLine($"hasExistingApplication: {hasExistingApplication}");
+            Console.WriteLine($"Show Form: {hasActiveProgram && !hasExistingApplication}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Failed to check program status: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            programCheckMessage = $"Error checking program status: {ex.Message}";
+        }
+    }
+
+    private async Task CheckActiveProgramOnly()
+    {
+        try
+        {
+            Console.WriteLine("=== CHECKING PROGRAM STATUS FOR NEW USER ===");
+
+            var activeProgram = await ProgramService.GetActiveProgramAsync();
+            hasActiveProgram = activeProgram != null;
+
+            Console.WriteLine($"Active Program: {(activeProgram == null ? "❌ NONE" : $" {activeProgram.Name}")}");
+            Console.WriteLine($"hasActiveProgram = {hasActiveProgram}");
+
+            if (hasActiveProgram)
+            {
+                activeProgramName = activeProgram.Name;
+                programCheckMessage = $"Active program: {activeProgram.Name}";
+            }
+            else
+            {
+                programCheckMessage = "No active recruitment program at this time.";
+            }
+
+            hasExistingApplication = false;
+            Console.WriteLine($"hasExistingApplication = {hasExistingApplication} (New user - skip check)");
+            Console.WriteLine($"Show Form: {hasActiveProgram}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ERROR] Failed to check program: {ex.Message}");
+            programCheckMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private string submitMessage = string.Empty;
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            Console.WriteLine("HandleValidSubmit called!");
+            var validationContext = new ValidationContext(registerModel);
+            var validationResults = new List<ValidationResult>();
+            bool isValid = Validator.TryValidateObject(registerModel, validationContext, validationResults, true);
+
+            if (!isValid)
+            {
+                Console.WriteLine("Model is still invalid!");
+                foreach (var error in validationResults)
+                {
+                    Console.WriteLine($"- {error.ErrorMessage}");
+                }
+                submitMessage = "Form validation failed. Please check all required fields.";
+                return;
+            }
+
+            var apiModel = new
+            {
+                registerModel.ID,
+                registerModel.LastName,
+                registerModel.FirstName,
+                registerModel.VietnameseName,
+                registerModel.Gender,
+                registerModel.Nationality,
+                registerModel.DateOfBirth,
+                registerModel.PlaceOfBirth,
+                registerModel.Email,
+                registerModel.IdCardNumber,
+                registerModel.DateOfIssue,
+                registerModel.PlaceOfIssue,
+                registerModel.Mobile,
+                registerModel.Street,
+                registerModel.Ward,
+                registerModel.CurrentAddress,
+                registerModel.City,
+                registerModel.PreferableOfficeLocation,
+                registerModel.FirstPreference,
+                registerModel.SecondPreference
+            };
+
+            Console.WriteLine("Sending data to API...");
+            Console.WriteLine(JsonSerializer.Serialize(apiModel, new JsonSerializerOptions { WriteIndented = true }));
+
+            var response = await Http.PostAsJsonAsync("api/User/register", apiModel);
+
+            if (response.IsSuccessStatusCode)
+            {
+                submitMessage = "Lưu thành công! Đang chuyển đến bước tiếp theo...";
+                StateHasChanged();
+
+                await Task.Delay(800);
+
+                Navigation.NavigateTo("/step2", forceLoad: false);
+            }
+            else
+            {
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                submitMessage = $"Lỗi: {errorMessage}";
+                Console.WriteLine($"API Error: {errorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            submitMessage = $"Lỗi: {ex.Message}";
+            Console.WriteLine($"Exception: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private void HandleInvalidSubmit()
+    {
+        Console.WriteLine("HandleInvalidSubmit called! Form is invalid.");
+        var validationContext = new ValidationContext(registerModel);
+        var validationResults = new List<ValidationResult>();
+        Validator.TryValidateObject(registerModel, validationContext, validationResults, true);
+
+        Console.WriteLine("Validation errors:");
+        foreach (var error in validationResults)
+        {
+            Console.WriteLine($"- {error.ErrorMessage}");
+        }
+        submitMessage = "Form có lỗi validation. Vui lòng kiểm tra lại các trường bắt buộc.";
+    }
+}
+
+
